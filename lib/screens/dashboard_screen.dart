@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/stock_model.dart';
+import '../services/api_service.dart';
+import 'stock_detail_screen.dart';
+import 'add_stock_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   @override
@@ -7,11 +10,24 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  List<StockModel> watchlist = [
-    StockModel(name: "삼성전자", price: 56000, change: 0.3, volume: "1.2M"),
-    StockModel(name: "현대자동차", price: 210000, change: -0.8, volume: "900K"),
-    StockModel(name: "LG전자", price: 79400, change: 1.5, volume: "750K"),
-  ];
+  List<StockModel> watchlist = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWatchlist();
+  }
+
+  Future<void> _loadWatchlist() async {
+    setState(() => isLoading = true);
+    try {
+      watchlist = await StockAPIService.getWatchlist(['삼성전자', '현대자동차', 'LG전자']);
+    } catch (e) {
+      print("❌ 관심종목 불러오기 오류: $e");
+    }
+    setState(() => isLoading = false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,29 +41,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.push_pin, color: Colors.redAccent),
-                SizedBox(width: 8),
-                Text(
-                  "관심종목",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-              ],
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.push_pin, color: Colors.redAccent),
+                      SizedBox(width: 8),
+                      Text(
+                        "관심종목",
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  _buildStockTable(),
+                ],
+              ),
             ),
-            const SizedBox(height: 10),
-            _buildStockTable(),
-          ],
-        ),
-      ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // 관심종목 추가 화면 이동
+        onPressed: () async {
+          final newStock = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => AddStockScreen()),
+          );
+          if (newStock != null && newStock is StockModel) {
+            setState(() => watchlist.add(newStock));
+          }
         },
         child: const Icon(Icons.add),
         backgroundColor: Colors.blue,
@@ -63,27 +87,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildStockTable() {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          color: Colors.grey[200],
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(child: Text("📌 종목명", textAlign: TextAlign.center)),
-              Expanded(child: Text("💰 현재가", textAlign: TextAlign.center)),
-              Expanded(child: Text("📊 등락률", textAlign: TextAlign.center)),
-              Expanded(child: Text("📈 거래량", textAlign: TextAlign.center)),
-              SizedBox(width: 40),
-            ],
-          ),
-        ),
-        Column(
-          children: watchlist.asMap().entries.map((entry) {
-            int index = entry.key;
-            StockModel stock = entry.value;
-            return Container(
+    return Expanded(
+      child: ListView.builder(
+        itemCount: watchlist.length,
+        itemBuilder: (context, index) {
+          final stock = watchlist[index];
+          return GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => StockDetailScreen(stock: stock),
+                ),
+              );
+            },
+            child: Container(
               color: index.isEven ? Colors.white : Colors.grey[100],
               padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
               child: Row(
@@ -102,17 +120,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () {
-                      setState(() {
-                        watchlist.removeAt(index);
-                      });
+                      setState(() => watchlist.removeAt(index));
                     },
                   ),
                 ],
               ),
-            );
-          }).toList(),
-        ),
-      ],
+            ),
+          );
+        },
+      ),
     );
   }
 }

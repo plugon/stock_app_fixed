@@ -14,32 +14,38 @@ class _AddStockScreenState extends State<AddStockScreen> {
 
   void _addStock(String stockName) async {
     if (stockName.isNotEmpty) {
-      setState(() {
-        _isLoading = true;
-      });
+      setState(() => _isLoading = true);
 
-      // ✅ API에서 최신 주가 가져오기
-      final stockPrice = await StockAPIService.getStockPrice(stockName);
+      try {
+        final stockDetails = await StockAPIService.getStockDetails(stockName);
+        setState(() => _isLoading = false);
 
-      setState(() {
-        _isLoading = false;
-      });
-
-      if (stockPrice != null) {
-        final newStock = StockModel(name: stockName, price: stockPrice);
-        Navigator.pop(context, newStock); // ✅ 관심종목 추가 후 대시보드로 이동
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("해당 종목 정보를 가져올 수 없습니다.")),
-        );
+        if (stockDetails.isNotEmpty) {
+          final newStock = StockModel(
+            name: stockName,
+            price: stockDetails['price'],
+            change: stockDetails['change'],
+            volume: stockDetails['volume'],
+          );
+          Navigator.pop(context, newStock); // ✅ 관심종목 추가 후 대시보드로 이동
+        } else {
+          _showErrorSnackBar("해당 종목 정보를 가져올 수 없습니다.");
+        }
+      } catch (e) {
+        _showErrorSnackBar("❌ 오류 발생: $e");
+        setState(() => _isLoading = false);
       }
     }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('관심종목 추가')),
+      appBar: AppBar(title: const Text('관심종목 추가')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -49,22 +55,29 @@ class _AddStockScreenState extends State<AddStockScreen> {
               decoration: InputDecoration(
                 labelText: '종목명 입력',
                 suffixIcon: _isLoading
-                    ? CircularProgressIndicator()
+                    ? const Padding(
+                        padding: EdgeInsets.all(8.0),
+                        child: CircularProgressIndicator(),
+                      )
                     : IconButton(
-                        icon: Icon(Icons.add),
+                        icon: const Icon(Icons.add),
                         onPressed: () => _addStock(_controller.text),
                       ),
               ),
+              onSubmitted: _addStock,
             ),
-            SizedBox(height: 20),
-            Text('추천 종목'),
+            const SizedBox(height: 20),
+            const Text('📈 추천 종목'),
             Expanded(
               child: ListView.builder(
                 itemCount: _sampleStocks.length,
                 itemBuilder: (context, index) {
-                  return ListTile(
-                    title: Text(_sampleStocks[index]),
-                    onTap: () => _addStock(_sampleStocks[index]),
+                  return Card(
+                    child: ListTile(
+                      title: Text(_sampleStocks[index]),
+                      trailing: const Icon(Icons.add_circle_outline, color: Colors.blue),
+                      onTap: () => _addStock(_sampleStocks[index]),
+                    ),
                   );
                 },
               ),
