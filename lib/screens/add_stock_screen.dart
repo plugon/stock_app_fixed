@@ -1,70 +1,77 @@
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import '../models/stock_model.dart';
 import '../services/api_service.dart';
 
-// ✅ 관심종목 추가 화면
 class AddStockScreen extends StatefulWidget {
   @override
   _AddStockScreenState createState() => _AddStockScreenState();
 }
 
+class CustomSearchButton extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  CustomSearchButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.blue, // 버튼 배경색
+        foregroundColor: Colors.white, // 아이콘 및 텍스트 색상
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10), // 둥근 모서리
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), // 패딩
+      ),
+      icon: const Icon(Icons.search, size: 24),
+      label: const Text("검색"),
+      onPressed: onPressed,
+    );
+  }
+}
+
 class _AddStockScreenState extends State<AddStockScreen> {
-  final TextEditingController _controller = TextEditingController(); // 검색창 입력 컨트롤러
-  final List<String> _sampleStocks = ['삼성전자', '현대자동차', '네이버', '카카오', 'LG전자']; // 추천 종목 리스트
-  bool _isLoading = false; // 데이터 로딩 상태를 나타내는 변수
+  final TextEditingController _controller = TextEditingController();
+  bool _isLoading = false;
+  List<StockModel> _searchResults = [];
+  final List<StockModel> _selectedStocks = [];
 
-  // 현재 추가된 종목들을 저장하는 리스트
-  final List<StockModel> _addedStocks = [];
-
-  // 🔧 종목 추가 함수
-  // - 사용자가 종목명을 검색창에 입력하거나 추천 종목을 선택했을 때 호출
-  // - 중복 추가를 방지하고, 추가된 종목 목록을 화면에 업데이트
-  void _addStock(String stockName) async {
+  void _searchStock(String stockName) async {
     if (stockName.isNotEmpty) {
-      setState(() {
-        _isLoading = true; // 로딩 상태 활성화
-      });
-
+      setState(() => _isLoading = true);
       try {
-        // ✅ 종목 상세 데이터 가져오기 (가격, 변동률, 거래량)
-        final stockDetails = await StockAPIService.getStockDetails(stockName);
+        final stockDetailsList = await StockAPIService.searchStocks(stockName);
         setState(() {
-          _isLoading = false; // 로딩 상태 비활성화
-        });
-
-        if (stockDetails.isNotEmpty) {
-          final newStock = StockModel(
-            name: stockName,
-            price: stockDetails['price'],
-            change: stockDetails['change'],
-            volume: stockDetails['volume'],
-          );
-          // 중복 추가 방지: 이미 추가된 종목인지 확인
-          bool alreadyAdded = _addedStocks.any((stock) => stock.name == newStock.name);
-          if (!alreadyAdded) {
-            // 중복되지 않았다면 추가
-            setState(() {
-              _addedStocks.add(newStock);
-            });
-            _showSnackBar("[$stockName] 종목이 추가되었습니다.");
-            _controller.clear(); // 입력창 비우기
+          if (stockDetailsList.isEmpty) {
+            Fluttertoast.showToast(msg: "검색된 종목이 없습니다.");
           } else {
-            _showSnackBar("[$stockName] 종목은 이미 추가되었습니다.");
+            _searchResults.addAll(stockDetailsList);
           }
-        } else {
-          _showSnackBar("해당 종목 정보를 가져올 수 없습니다.");
-        }
-      } catch (e) {
-        // API 호출 중 오류 발생 시 처리
-        _showSnackBar("오류 발생: $e");
-        setState(() {
-          _isLoading = false; // 로딩 상태 비활성화
+          _isLoading = false;
         });
+        _controller.clear(); // 검색어 초기화
+      } catch (e) {
+        _showSnackBar("오류 발생: $e");
+        setState(() => _isLoading = false);
       }
     }
   }
 
-  // 🔧 스낵바를 통해 사용자에게 메시지 표시
+  void _toggleSelection(StockModel stock) {
+    setState(() {
+      if (_selectedStocks.contains(stock)) {
+        _selectedStocks.remove(stock);
+      } else {
+        _selectedStocks.add(stock);
+      }
+    });
+  }
+
+  void _addSelectedStocks() {
+    Navigator.pop(context, _selectedStocks);
+  }
+
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
@@ -75,14 +82,11 @@ class _AddStockScreenState extends State<AddStockScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('관심종목 추가'), // 화면 제목
+        title: const Text('관심종목 추가'),
         actions: [
-          // ✅ 완료 버튼: 추가된 종목들을 반환하고 화면 종료
           IconButton(
             icon: const Icon(Icons.check),
-            onPressed: () {
-              Navigator.pop(context, _addedStocks); // 추가한 종목 목록 반환
-            },
+            onPressed: _addSelectedStocks,
           ),
         ],
       ),
@@ -90,73 +94,59 @@ class _AddStockScreenState extends State<AddStockScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // 🔍 검색창
-            // 사용자가 종목명을 입력할 수 있는 텍스트 필드
-            TextField(
-              controller: _controller,
-              decoration: InputDecoration(
-                labelText: '종목명 입력',
-                suffixIcon: _isLoading
-                    ? const Padding(
-                        padding: EdgeInsets.all(8.0),
-                        child: CircularProgressIndicator(), // 로딩 표시
-                      )
-                    : IconButton(
-                        icon: const Icon(Icons.add),
-                        onPressed: () => _addStock(_controller.text), // 종목 추가 호출
-                      ),
-              ),
-              onSubmitted: _addStock,
+            Row(
+              children: [
+                // 검색 텍스트 필드
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    decoration: const InputDecoration(
+                      labelText: '종목명 입력',
+                    ),
+                    onSubmitted: _searchStock,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // 검색 버튼
+                CustomSearchButton(
+                        onPressed: () {
+                          // 검색 로직
+                          _searchStock(_controller.text);
+                        },
+                ),
+
+      
+                const SizedBox(width: 10),
+                // 관심종목 추가 버튼
+                ElevatedButton(
+                  onPressed: _addSelectedStocks,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    backgroundColor: Colors.blue, // 배경색
+                    foregroundColor: Colors.white, // 텍스트 색상
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                  ),
+                  child: const Text('추가'),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
-
-            // ✅ 추가된 종목 목록
-            if (_addedStocks.isNotEmpty)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '추가된 종목', // 섹션 제목
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  // ListView.builder를 사용하여 추가된 종목을 리스트로 표시
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(), // 스크롤 비활성화
-                    itemCount: _addedStocks.length,
-                    itemBuilder: (context, index) {
-                      final stock = _addedStocks[index];
-                      return ListTile(
-                        title: Text(stock.name), // 종목명 표시
-                        subtitle: Text('가격: ${stock.price}'), // 가격 표시
-                        trailing: IconButton(
-                          icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-                          onPressed: () {
-                            setState(() {
-                              _addedStocks.removeAt(index); // 종목 삭제
-                            });
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                ],
-              ),
-
-            // ✅ 추천 종목 섹션
-            // 사용자가 추천 종목을 빠르게 추가할 수 있도록 표시
-            const Text('📈 추천 종목'),
+            // 검색 결과 리스트
             Expanded(
               child: ListView.builder(
-                itemCount: _sampleStocks.length,
+                itemCount: _searchResults.length,
                 itemBuilder: (context, index) {
-                  return Card(
-                    child: ListTile(
-                      title: Text(_sampleStocks[index]), // 추천 종목명 표시
-                      trailing: const Icon(Icons.add_circle_outline, color: Colors.blue),
-                      onTap: () => _addStock(_sampleStocks[index]), // 종목 추가 호출
-                    ),
+                  final stock = _searchResults[index];
+                  final isSelected = _selectedStocks.contains(stock);
+                  return ListTile(
+                    title: Text(stock.name),
+                    subtitle: Text("현재가: ${stock.price}"),
+                    trailing: isSelected
+                        ? const Icon(Icons.check_circle, color: Colors.green)
+                        : const Icon(Icons.radio_button_unchecked),
+                    onTap: () => _toggleSelection(stock),
                   );
                 },
               ),
