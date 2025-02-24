@@ -39,29 +39,82 @@ class StockAPIService {
 
   /// ✅ 공공데이터포털 API - 종목 상세 데이터
   static Future<Map<String, dynamic>> _fetchPublicDataPortalStockDetails(String stockName) async {
-    final String apiKey = "L5xHJjuog46hJGCvOxg8vjW6MN2sT%2F%2BMFJq2YNFtNg%2B2iznFpL9%2BZMuIXSMoikW2S3wnlf6lPYQlC2SFrt9smQ%3D%3D"; // ✅ 공공데이터포털 API 키 입력
-    final String url ="https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo?serviceKey=$apiKey&numOfRows=1&pageNo=1&resultType=json&itmsNm=$stockName";
+  final String apiKey =
+      "L5xHJjuog46hJGCvOxg8vjW6MN2sT%2F%2BMFJq2YNFtNg%2B2iznFpL9%2BZMuIXSMoikW2S3wnlf6lPYQlC2SFrt9smQ%3D%3D"; // 공공데이터포털 API 키
+  final String url =
+      "https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo?serviceKey=$apiKey&numOfRows=1&pageNo=1&resultType=json&itmsNm=$stockName";
 
-    try {
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data["response"]["header"]["resultCode"] == "00") {
-          final item = data["response"]["body"]["items"]["item"][0];
-          return {
-            'price': double.tryParse(item["clpr"] ?? "0") ?? 0.0,
-            'change': double.tryParse(item["vs"] ?? "0") ?? 0.0,
-            'volume': item["trqu"] ?? "0",
-            'historicalPrices': List<double>.generate(
-                7, (index) => double.tryParse(item["clpr"]) ?? 0.0), // 더미 차트 데이터
-          };
+  // 요청 URL 출력
+  print("디버그: 요청 URL -> $url");
+print("디버그: 요청 stockName -> $stockName");
+  try {
+    final response = await http.get(Uri.parse(url));
+    print("디버그: HTTP 응답 상태 코드 -> ${response.statusCode}");
+    print("디버그: HTTP 응답 본문 -> ${response.body}");
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      print("디버그: JSON 파싱 결과 -> $data");
+
+      if (data["response"]["header"]["resultCode"] == "00") {
+        final body = data["response"]["body"];
+
+        // totalCount가 0이면 데이터가 없음을 의미
+        if (body["totalCount"] == 0) {
+          print("디버그: totalCount가 0입니다. 유효한 데이터가 없습니다.");
+          return {};
         }
+
+        final items = body["items"]["item"];
+        if (items == null) {
+          print("디버그: items가 null입니다.");
+          return {};
+        }
+
+        dynamic item;
+        if (items is List) {
+          if (items.isEmpty) {
+            print("디버그: items 리스트가 비어 있습니다.");
+            return {};
+          }
+          item = items[0];
+        } else if (items is Map) {
+          // 단일 아이템 객체로 올 경우 처리
+          item = items;
+        } else {
+          print("디버그: items의 타입이 예상과 다릅니다: ${items.runtimeType}");
+          return {};
+        }
+
+        // 각 필드를 안전하게 파싱
+        final price = double.tryParse(item["clpr"]?.toString() ?? "0") ?? 0.0;
+        final change = double.tryParse(item["vs"]?.toString() ?? "0") ?? 0.0;
+        final volume = item["trqu"]?.toString() ?? "0";
+
+        // 차트용 데이터는 더미로 7일치 가격을 생성
+        final historicalPrices = List<double>.generate(
+          7,
+          (index) => double.tryParse(item["clpr"]?.toString() ?? "0") ?? 0.0,
+        );
+
+        return {
+          'price': price,
+          'change': change,
+          'volume': volume,
+          'historicalPrices': historicalPrices,
+        };
+      } else {
+        print("디버그: API 응답 코드가 '00'이 아님 -> ${data["response"]["header"]["resultCode"]}");
       }
-    } catch (e) {
-      print("❌ 공공데이터포털 API 오류: $e");
+    } else {
+      print("디버그: HTTP 요청 실패 -> 상태 코드: ${response.statusCode}");
     }
-    return {};
+  } catch (e) {
+    print("디버그: 공공데이터포털 API 호출 중 예외 발생 -> $e");
   }
+  return {};
+}
+
 
   /// ✅ Yahoo Finance API - 종목 상세 데이터
   static Future<Map<String, dynamic>> _fetchYahooFinanceStockDetails(String stockName) async {
