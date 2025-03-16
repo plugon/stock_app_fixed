@@ -97,15 +97,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         },
         child: const Icon(Icons.add), // 플로팅 버튼 아이콘
         backgroundColor: Colors.blue, // 플로팅 버튼 배경색
-      ),
-      // 🔧 하단 네비게이션 바
-      bottomNavigationBar: BottomNavigationBar(
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.list), label: "관심종목"),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: "검색"),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: "설정"),
-        ],
-      ),
+      )
+ 
     );
   }
 
