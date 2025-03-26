@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class MarketScreen extends StatefulWidget {
   const MarketScreen({Key? key}) : super(key: key);
@@ -7,38 +9,45 @@ class MarketScreen extends StatefulWidget {
   _MarketScreenState createState() => _MarketScreenState();
 }
 
-class _MarketScreenState extends State<MarketScreen> with SingleTickerProviderStateMixin {
+class _MarketScreenState extends State<MarketScreen> with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late TabController _tabController;
+  bool isLoading = false;
+  
   final List<MarketIndex> _indices = [
     MarketIndex(
       name: "KOSPI",
       value: 2845.32,
       change: 1.25,
       isUp: true,
+      historicalData: [2820.12, 2835.45, 2828.76, 2815.23, 2830.56, 2845.32],
     ),
     MarketIndex(
       name: "KOSDAQ",
       value: 932.17,
       change: 0.87,
       isUp: true,
+      historicalData: [925.34, 928.67, 930.12, 927.89, 929.45, 932.17],
     ),
     MarketIndex(
       name: "S&P 500",
       value: 5123.45,
       change: -0.32,
       isUp: false,
+      historicalData: [5135.67, 5142.23, 5138.45, 5130.12, 5125.78, 5123.45],
     ),
     MarketIndex(
       name: "NASDAQ",
       value: 16234.78,
       change: -0.45,
       isUp: false,
+      historicalData: [16280.45, 16275.32, 16260.78, 16250.34, 16240.12, 16234.78],
     ),
     MarketIndex(
       name: "DOW",
       value: 38765.32,
       change: 0.12,
       isUp: true,
+      historicalData: [38720.45, 38735.67, 38750.23, 38745.12, 38760.45, 38765.32],
     ),
   ];
 
@@ -68,10 +77,21 @@ class _MarketScreenState extends State<MarketScreen> with SingleTickerProviderSt
     HotStock(name: "LG화학", price: 512000, change: 2.1, isUp: true, volume: "0.5M"),
   ];
 
+  // 상승/하락 종목 비율 데이터
+  final Map<String, double> _marketRatio = {
+    '상승': 52.3,
+    '하락': 43.7,
+    '보합': 4.0,
+  };
+
+  @override
+  bool get wantKeepAlive => true;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _refreshData();
   }
 
   @override
@@ -80,22 +100,48 @@ class _MarketScreenState extends State<MarketScreen> with SingleTickerProviderSt
     super.dispose();
   }
 
+  // 데이터 새로고침 함수
+  Future<void> _refreshData() async {
+    setState(() {
+      isLoading = true;
+    });
+    
+    // 실제 구현에서는 여기서 API 호출을 통해 데이터를 가져옴
+    await Future.delayed(const Duration(milliseconds: 800));
+    
+    setState(() {
+      isLoading = false;
+    });
+    
+    return Future.value();
+  }
+
   @override
   Widget build(BuildContext context) {
+    super.build(context);
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          "📈 시장 동향",
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          "시장 동향",
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 0,
+        actions: [
+          // 새로고침 버튼
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _refreshData,
+            tooltip: '새로고침',
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
-          labelColor: Colors.blue,
-          unselectedLabelColor: Colors.grey,
-          indicatorColor: Colors.blue,
+          labelStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+          unselectedLabelStyle: Theme.of(context).textTheme.labelLarge,
           tabs: const [
             Tab(text: "주요 지수"),
             Tab(text: "업종별 동향"),
@@ -103,84 +149,110 @@ class _MarketScreenState extends State<MarketScreen> with SingleTickerProviderSt
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildIndicesTab(),
-          _buildSectorsTab(),
-          _buildHotStocksTab(),
-        ],
-      ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                _buildIndicesTab(context),
+                _buildSectorsTab(context),
+                _buildHotStocksTab(context),
+              ],
+            ),
     );
   }
 
-  Widget _buildIndicesTab() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "주요 지수 현황",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: ListView.builder(
+  Widget _buildIndicesTab(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _refreshData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 상승/하락 종목 비율 도넛 차트
+            _buildMarketRatioChart(context),
+            const SizedBox(height: 24),
+            
+            Text(
+              "주요 지수 현황",
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 16),
+            
+            // 주요 지수 리스트
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
               itemCount: _indices.length,
               itemBuilder: (context, i) {
                 final marketIndex = _indices[i];
                 return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
+                  margin: const EdgeInsets.only(bottom: 16),
                   elevation: 2,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: Column(
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              marketIndex.name,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  marketIndex.name,
+                                  style: Theme.of(context).textTheme.headlineSmall,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  "현재 지수",
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              "현재 지수",
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                              ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  marketIndex.value.toStringAsFixed(2),
+                                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      marketIndex.isUp ? Icons.arrow_upward : Icons.arrow_downward,
+                                      color: marketIndex.isUp ? AppColors.upColor : AppColors.downColor,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      "${marketIndex.isUp ? '+' : ''}${marketIndex.change.toStringAsFixed(2)}%",
+                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: marketIndex.isUp ? AppColors.upColor : AppColors.downColor,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              marketIndex.value.toStringAsFixed(2),
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              "${marketIndex.isUp ? '+' : ''}${marketIndex.change.toStringAsFixed(2)}%",
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: marketIndex.isUp ? Colors.green : Colors.red,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+                        const SizedBox(height: 16),
+                        // 미니 차트 추가
+                        SizedBox(
+                          height: 80,
+                          child: _buildMiniChart(context, marketIndex),
                         ),
                       ],
                     ),
@@ -188,28 +260,189 @@ class _MarketScreenState extends State<MarketScreen> with SingleTickerProviderSt
                 );
               },
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildSectorsTab() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "업종별 등락률",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+  // 상승/하락 종목 비율 도넛 차트
+  Widget _buildMarketRatioChart(BuildContext context) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "상승/하락 종목 비율",
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                // 도넛 차트
+                SizedBox(
+                  height: 150,
+                  width: 150,
+                  child: PieChart(
+                    PieChartData(
+                      sectionsSpace: 2,
+                      centerSpaceRadius: 40,
+                      sections: [
+                        PieChartSectionData(
+                          value: _marketRatio['상승']!,
+                          title: '${_marketRatio['상승']!.toStringAsFixed(1)}%',
+                          color: AppColors.upColor,
+                          radius: 30,
+                          titleStyle: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        PieChartSectionData(
+                          value: _marketRatio['하락']!,
+                          title: '${_marketRatio['하락']!.toStringAsFixed(1)}%',
+                          color: AppColors.downColor,
+                          radius: 30,
+                          titleStyle: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        PieChartSectionData(
+                          value: _marketRatio['보합']!,
+                          title: '${_marketRatio['보합']!.toStringAsFixed(1)}%',
+                          color: AppColors.neutral,
+                          radius: 30,
+                          titleStyle: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // 범례
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildLegendItem(context, "상승", AppColors.upColor, _marketRatio['상승']!),
+                      const SizedBox(height: 12),
+                      _buildLegendItem(context, "하락", AppColors.downColor, _marketRatio['하락']!),
+                      const SizedBox(height: 12),
+                      _buildLegendItem(context, "보합", AppColors.neutral, _marketRatio['보합']!),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 범례 아이템
+  Widget _buildLegendItem(BuildContext context, String label, Color color, double value) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
           ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: ListView.builder(
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const Spacer(),
+        Text(
+          "${value.toStringAsFixed(1)}%",
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 미니 차트
+  Widget _buildMiniChart(BuildContext context, MarketIndex index) {
+    final spots = List.generate(
+      index.historicalData.length,
+      (i) => FlSpot(i.toDouble(), index.historicalData[i]),
+    );
+    
+    return LineChart(
+      LineChartData(
+        gridData: FlGridData(show: false),
+        titlesData: FlTitlesData(show: false),
+        borderData: FlBorderData(show: false),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            color: index.isUp ? AppColors.upColor : AppColors.downColor,
+            barWidth: 2,
+            isStrokeCapRound: true,
+            dotData: FlDotData(show: false),
+            belowBarData: BarAreaData(
+              show: true,
+              color: index.isUp 
+                ? AppColors.upColor.withOpacity(0.2) 
+                : AppColors.downColor.withOpacity(0.2),
+            ),
+          ),
+        ],
+        lineTouchData: LineTouchData(enabled: false),
+      ),
+    );
+  }
+
+  Widget _buildSectorsTab(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _refreshData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 업종별 성과 히트맵
+            _buildSectorHeatmap(context),
+            const SizedBox(height: 24),
+            
+            Text(
+              "업종별 등락률",
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 16),
+            
+            // 업종별 리스트
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
               itemCount: _sectors.length,
               itemBuilder: (context, index) {
                 final sector = _sectors[index];
+                final absChange = sector.change.abs();
+                final progressValue = absChange / 3.0; // 최대 3%로 가정
+                
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
                   elevation: 2,
@@ -218,33 +451,45 @@ class _MarketScreenState extends State<MarketScreen> with SingleTickerProviderSt
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          sector.name,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
                         Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Icon(
-                              sector.isUp ? Icons.arrow_upward : Icons.arrow_downward,
-                              color: sector.isUp ? Colors.green : Colors.red,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 4),
                             Text(
-                              "${sector.isUp ? '+' : ''}${sector.change.toStringAsFixed(1)}%",
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: sector.isUp ? Colors.green : Colors.red,
+                              sector.name,
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
+                            Row(
+                              children: [
+                                Icon(
+                                  sector.isUp ? Icons.arrow_upward : Icons.arrow_downward,
+                                  color: sector.isUp ? AppColors.upColor : AppColors.downColor,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  "${sector.isUp ? '+' : ''}${sector.change.toStringAsFixed(1)}%",
+                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    color: sector.isUp ? AppColors.upColor : AppColors.downColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ],
+                        ),
+                        const SizedBox(height: 8),
+                        // 진행 표시줄
+                        LinearProgressIndicator(
+                          value: progressValue,
+                          backgroundColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
+                          color: sector.isUp ? AppColors.upColor : AppColors.downColor,
+                          minHeight: 6,
+                          borderRadius: BorderRadius.circular(3),
                         ),
                       ],
                     ),
@@ -252,84 +497,67 @@ class _MarketScreenState extends State<MarketScreen> with SingleTickerProviderSt
                 );
               },
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildHotStocksTab() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "오늘의 인기 종목",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _hotStocks.length,
+  // 업종별 성과 히트맵
+  Widget _buildSectorHeatmap(BuildContext context) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "업종별 성과 히트맵",
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 16),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                childAspectRatio: 1.5,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+              ),
+              itemCount: _sectors.length,
               itemBuilder: (context, index) {
-                final stock = _hotStocks[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                final sector = _sectors[index];
+                final absChange = sector.change.abs();
+                final opacity = 0.3 + (absChange / 3.0) * 0.7; // 변화량에 따른 투명도 조정
+                
+                return Container(
+                  decoration: BoxDecoration(
+                    color: sector.isUp 
+                      ? AppColors.upColor.withOpacity(opacity) 
+                      : AppColors.downColor.withOpacity(opacity),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Expanded(
-                          flex: 2,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                stock.name,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                "거래량: ${stock.volume}",
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
+                        Text(
+                          sector.name,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Expanded(
-                          flex: 1,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                "${stock.price.toString()} 원",
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                "${stock.isUp ? '+' : ''}${stock.change.toStringAsFixed(1)}%",
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: stock.isUp ? Colors.green : Colors.red,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
+                        const SizedBox(height: 4),
+                        Text(
+                          "${sector.isUp ? '+' : ''}${sector.change.toStringAsFixed(1)}%",
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.white,
                           ),
                         ),
                       ],
@@ -338,8 +566,157 @@ class _MarketScreenState extends State<MarketScreen> with SingleTickerProviderSt
                 );
               },
             ),
-          ),
-        ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHotStocksTab(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _refreshData,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16.0),
+        itemCount: _hotStocks.length + 1, // +1 for header
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            // 헤더
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "오늘의 인기 종목",
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 16),
+                // 테이블 헤더
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: Text(
+                          "종목명",
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          "현재가",
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          "등락률",
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          "거래량",
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: Theme.of(context).dividerTheme.color,
+                ),
+                const SizedBox(height: 8),
+              ],
+            );
+          }
+          
+          // 종목 아이템
+          final stock = _hotStocks[index - 1];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  // 종목명
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      stock.name,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  
+                  // 현재가
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      "${stock.price.toStringAsFixed(0)}원",
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                  
+                  // 등락률
+                  Expanded(
+                    flex: 2,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Icon(
+                          stock.isUp ? Icons.arrow_upward : Icons.arrow_downward,
+                          color: stock.isUp ? AppColors.upColor : AppColors.downColor,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          "${stock.isUp ? '+' : ''}${stock.change.toStringAsFixed(1)}%",
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: stock.isUp ? AppColors.upColor : AppColors.downColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // 거래량
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      stock.volume,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -350,12 +727,14 @@ class MarketIndex {
   final double value;
   final double change;
   final bool isUp;
+  final List<double> historicalData;
 
   MarketIndex({
     required this.name,
     required this.value,
     required this.change,
     required this.isUp,
+    required this.historicalData,
   });
 }
 
@@ -373,7 +752,7 @@ class SectorPerformance {
 
 class HotStock {
   final String name;
-  final int price;
+  final double price;
   final double change;
   final bool isUp;
   final String volume;
