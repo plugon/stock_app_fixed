@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../stock_model.dart';
+import '../models/stock_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 사용 가능한 주식 API 종류를 정의하는 열거형

@@ -7,39 +7,34 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.7.0
+  sdk: ">=2.19.0 <4.0.0"
 
  
 dependencies:
   flutter:
     sdk: flutter
-  fl_chart: ^0.63.0  # 최신 버전 사용
+  fl_chart: ^0.70.2  # 최신 버전 사용
   fluttertoast: ^8.0.9
-  http: ^1.3.0  
+  http: ^1.1.0  
   path_provider: ^2.0.11
   yahoo_finance_data_reader: ^1.0.0
   flutter_launcher_icons: ^0.14.3
-  async: 2.12.0  # flutter_test와 충돌 방지
-  material_color_utilities: 0.11.1  # flutter_test와 충돌 방지
-  vm_service: 14.3.1  # flutter_test와 버전 맞추기
-  intl: ^0.18.0   
+  async: ^2.12.0  # flutter_test와 충돌 방지
+  intl: ^0.20.2   
   shared_preferences: ^2.2.0
+  qr_flutter: ^4.1.0  # QR 코드 생성 패키지 추가
+  google_fonts: ^6.2.1  # 구글 폰트 패키지 추가
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
+  cupertino_icons: ^1.0.5
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  fake_async: 1.3.2  # flutter_test와 버전 맞추기
-  leak_tracker: 10.0.8  # flutter_test와 버전 맞추기
 
  
   flutter_lints: ^5.0.0
  
 flutter:
   uses-material-design: true
-  
-
-  
